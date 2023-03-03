@@ -1,4 +1,4 @@
-try:
+try:#undefined
     # ignore ShapelyDeprecationWarning from fvcore
     from shapely.errors import ShapelyDeprecationWarning
     import warnings
