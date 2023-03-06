@@ -40,7 +40,7 @@ from detectron2.utils.logger import setup_logger
 # MaskFormer
 from mask2former import add_maskformer2_config
 from vita import (
-    YTVISDatasetMapper,
+    YTVISDatasetMapper, #mapper for YTVIS
     CocoClipDatasetMapper,
     YTVISEvaluator,
     build_combined_loader,
@@ -50,13 +50,13 @@ from vita import (
 )
 
 
-class Trainer(DefaultTrainer):
+class Trainer(DefaultTrainer): #trainer class
     """
     Extension of the Trainer class adapted to MaskFormer.
     """
 
     @classmethod
-    def build_evaluator(cls, cfg, dataset_name, output_folder=None):
+    def build_evaluator(cls, cfg, dataset_name, output_folder=None): #build evaluator
         """
         Create evaluator(s) for a given dataset.
         This uses the special metadata "evaluator_type" associated with each
@@ -69,9 +69,9 @@ class Trainer(DefaultTrainer):
             os.makedirs(output_folder, exist_ok=True)
         evaluator_list = []
         evaluator_type = MetadataCatalog.get(dataset_name).evaluator_type
-        if evaluator_type == "coco":
+        if evaluator_type == "coco": #coco dataset
             evaluator_list.append(COCOEvaluator(dataset_name, cfg, True, output_folder))
-        elif evaluator_type == "ytvis":
+        elif evaluator_type == "ytvis": #ytvis dataset
             evaluator_list.append(YTVISEvaluator(dataset_name, cfg, True, output_folder))
 
         if len(evaluator_list) == 0:
@@ -86,7 +86,7 @@ class Trainer(DefaultTrainer):
             raise NotImplementedError
 
     @classmethod
-    def build_train_loader(cls, cfg):
+    def build_train_loader(cls, cfg):#train loader
         mappers = []
         for d_i, dataset_name in enumerate(cfg.DATASETS.TRAIN):
             if dataset_name.startswith('coco'):
@@ -115,7 +115,7 @@ class Trainer(DefaultTrainer):
             return combined_data_loader
 
     @classmethod
-    def build_test_loader(cls, cfg, dataset_name):
+    def build_test_loader(cls, cfg, dataset_name): #build test dataloader
         dataset_name = cfg.DATASETS.TEST[0]
         if dataset_name.startswith('coco'):
             mapper = CocoClipDatasetMapper(cfg, is_train=False)
@@ -124,7 +124,7 @@ class Trainer(DefaultTrainer):
         return build_detection_test_loader(cfg, dataset_name, mapper=mapper)
 
     @classmethod
-    def build_lr_scheduler(cls, cfg, optimizer):
+    def build_lr_scheduler(cls, cfg, optimizer): #build lr scheduler
         """
         It now calls :func:`detectron2.solver.build_lr_scheduler`.
         Overwrite it if you'd like a different scheduler.
@@ -132,16 +132,16 @@ class Trainer(DefaultTrainer):
         return build_lr_scheduler(cfg, optimizer)
 
     @classmethod
-    def build_optimizer(cls, cfg, model):
-        weight_decay_norm = cfg.SOLVER.WEIGHT_DECAY_NORM
+    def build_optimizer(cls, cfg, model):#build special optimizer
+        weight_decay_norm = cfg.SOLVER.WEIGHT_DECAY_NORM #the weight decay
         weight_decay_embed = cfg.SOLVER.WEIGHT_DECAY_EMBED
 
         defaults = {}
-        defaults["lr"] = cfg.SOLVER.BASE_LR
-        defaults["weight_decay"] = cfg.SOLVER.WEIGHT_DECAY
+        defaults["lr"] = cfg.SOLVER.BASE_LR #lr into defautls
+        defaults["weight_decay"] = cfg.SOLVER.WEIGHT_DECAY #weightsdecai into defaults
 
         norm_module_types = (
-            torch.nn.BatchNorm1d,
+            torch.nn.BatchNorm1d, #idk moduke types put here
             torch.nn.BatchNorm2d,
             torch.nn.BatchNorm3d,
             torch.nn.SyncBatchNorm,
@@ -154,34 +154,36 @@ class Trainer(DefaultTrainer):
             torch.nn.LocalResponseNorm,
         )
 
-        params: List[Dict[str, Any]] = []
-        memo: Set[torch.nn.parameter.Parameter] = set()
-        for module_name, module in model.named_modules():
-            for module_param_name, value in module.named_parameters(recurse=False):
-                if not value.requires_grad:
+        params: List[Dict[str, Any]] = [] #params
+        memo: Set[torch.nn.parameter.Parameter] = set() #set of parameters
+        for module_name, module in model.named_modules(): #for module in modules
+            for module_param_name, value in module.named_parameters(recurse=False): #for parameter in all parameteres
+                if not value.requires_grad: #daca nu necesita grad continue
                     continue
                 # Avoid duplicating parameters
-                if value in memo:
+                if value in memo: #daca e deja in memo don't duplicate it
                     continue
                 memo.add(value)
 
-                hyperparams = copy.copy(defaults)
+                hyperparams = copy.copy(defaults) #hyperparameters
                 if "backbone" in module_name:
-                    hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER
+                    hyperparams["lr"] = hyperparams["lr"] * cfg.SOLVER.BACKBONE_MULTIPLIER #multiply lr with that if in backbone
                 if (
                     "relative_position_bias_table" in module_param_name
                     or "absolute_pos_embed" in module_param_name
                 ):
-                    print(module_param_name)
+                    print(module_param_name) 
+                    #so for each parameter if it a normal module then normal weightdecai else embeded weight decayi
                     hyperparams["weight_decay"] = 0.0
                 if isinstance(module, norm_module_types):
                     hyperparams["weight_decay"] = weight_decay_norm
-                if isinstance(module, torch.nn.Embedding):
+                if isinstance(module, torch.nn.Embedding): 
                     hyperparams["weight_decay"] = weight_decay_embed
                 params.append({"params": [value], **hyperparams})
 
         def maybe_add_full_model_gradient_clipping(optim):
             # detectron2 doesn't have full model gradient clipping now
+            # so because of that we make it her, neeext :D
             clip_norm_val = cfg.SOLVER.CLIP_GRADIENTS.CLIP_VALUE
             enable = (
                 cfg.SOLVER.CLIP_GRADIENTS.ENABLED
@@ -213,7 +215,7 @@ class Trainer(DefaultTrainer):
         return optimizer
 
     @classmethod
-    def test(cls, cfg, model, evaluators=None):
+    def test(cls, cfg, model, evaluators=None):#test metod
         """
         Evaluate the given model. The given model is expected to already contain
         weights to evaluate.
@@ -237,14 +239,14 @@ class Trainer(DefaultTrainer):
 
         results = OrderedDict()
         for idx, dataset_name in enumerate(cfg.DATASETS.TEST):
-            data_loader = cls.build_test_loader(cfg, dataset_name)
+            data_loader = cls.build_test_loader(cfg, dataset_name) #yay build dataset
             # When evaluators are passed in as arguments,
             # implicitly assume that evaluators can be created before data_loader.
             if evaluators is not None:
-                evaluator = evaluators[idx]
+                evaluator = evaluators[idx] #evaluator
             else:
                 try:
-                    evaluator = cls.build_evaluator(cfg, dataset_name)
+                    evaluator = cls.build_evaluator(cfg, dataset_name) #build evaluator
                 except NotImplementedError:
                     logger.warn(
                         "No evaluator found. Use `DefaultTrainer.test(evaluators=)`, "
@@ -252,23 +254,23 @@ class Trainer(DefaultTrainer):
                     )
                     results[dataset_name] = {}
                     continue
-            with autocast():
+            with autocast(): #with autocaset do infer
                 results_i = inference_on_dataset(model, data_loader, evaluator)
             results[dataset_name] = results_i
-            if comm.is_main_process():
+            if comm.is_main_process():#ok so there are many rocesses but only one will print
                 assert isinstance(
                     results_i, dict
                 ), "Evaluator must return a dict on the main process. Got {} instead.".format(
                     results_i
                 )
                 logger.info("Evaluation results for {} in csv format:".format(dataset_name))
-                print_csv_format(results_i)
+                print_csv_format(results_i)#print results
 
         if len(results) == 1:
             results = list(results.values())[0]
-        return results
+        return results #return results (dataset name inthere)
 
-def setup(args):
+def setup(args): #setup with config
     """
     Create configs and perform basic setups.
     """
@@ -286,24 +288,24 @@ def setup(args):
     return cfg
 
 
-def main(args):
+def main(args): #main
     cfg = setup(args)
 
     if args.eval_only:
-        model = Trainer.build_model(cfg)
+        model = Trainer.build_model(cfg) #build model
         DetectionCheckpointer(model, save_dir=cfg.OUTPUT_DIR).resume_or_load(
             cfg.MODEL.WEIGHTS, resume=args.resume
         )
-        res = Trainer.test(cfg, model)
+        res = Trainer.test(cfg, model) #trainer test
         if cfg.TEST.AUG.ENABLED:
             raise NotImplementedError
         if comm.is_main_process():
             verify_results(cfg, res)
         return res
 
-    trainer = Trainer(cfg)
-    trainer.resume_or_load(resume=args.resume)
-    return trainer.train()
+    trainer = Trainer(cfg) #trainer
+    trainer.resume_or_load(resume=args.resume) #resume or oad
+    return trainer.train()#train
 
 
 if __name__ == "__main__":
